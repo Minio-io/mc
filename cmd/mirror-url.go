@@ -167,7 +167,7 @@ func deltaSourceTarget(ctx context.Context, sourceURL, targetURL string, opts mi
 	}
 
 	// List both source and target, compare and return values through channel.
-	for diffMsg := range objectDifference(ctx, sourceClnt, targetClnt, opts.isMetadata) {
+	for diffMsg := range objectDifference(ctx, sourceClnt, targetClnt, opts) {
 		if diffMsg.Error != nil {
 			// Send all errors through the channel
 			URLsCh <- URLs{Error: diffMsg.Error, ErrorCond: differInUnknown}
@@ -277,6 +277,7 @@ type mirrorOptions struct {
 	storageClass                                          string
 	userMetadata                                          map[string]string
 	checksum                                              minio.ChecksumType
+	sourceListingOnly                                     bool
 }
 
 // Prepares urls that need to be copied or removed based on requested options.

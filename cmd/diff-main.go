@@ -184,7 +184,7 @@ func doDiffMain(ctx context.Context, firstURL, secondURL string) error {
 	}
 
 	// Diff first and second urls.
-	for diffMsg := range objectDifference(ctx, firstClient, secondClient, true) {
+	for diffMsg := range bucketObjectDifference(ctx, firstClient, secondClient) {
 		if diffMsg.Error != nil {
 			errorIf(diffMsg.Error, "Unable to calculate objects difference.")
 			// Ignore error and proceed to next object.

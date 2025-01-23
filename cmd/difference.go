@@ -161,17 +161,23 @@ func metadataEqual(m1, m2 map[string]string) bool {
 	return true
 }
 
-func objectDifference(ctx context.Context, sourceClnt, targetClnt Client, isMetadata bool) (diffCh chan diffMessage) {
-	sourceURL := sourceClnt.GetURL().String()
-	sourceCh := sourceClnt.List(ctx, ListOptions{Recursive: true, WithMetadata: isMetadata, ShowDir: DirNone})
-
-	targetURL := targetClnt.GetURL().String()
-	targetCh := targetClnt.List(ctx, ListOptions{Recursive: true, WithMetadata: isMetadata, ShowDir: DirNone})
-
-	return difference(sourceURL, sourceCh, targetURL, targetCh, isMetadata, false)
+func bucketObjectDifference(ctx context.Context, sourceClnt, targetClnt Client) (diffCh chan diffMessage) {
+	return objectDifference(ctx, sourceClnt, targetClnt, mirrorOptions{
+		isMetadata: false,
+	})
 }
 
-func bucketDifference(ctx context.Context, sourceClnt, targetClnt Client) (diffCh chan diffMessage) {
+func objectDifference(ctx context.Context, sourceClnt, targetClnt Client, opts mirrorOptions) (diffCh chan diffMessage) {
+	sourceURL := sourceClnt.GetURL().String()
+	sourceCh := sourceClnt.List(ctx, ListOptions{Recursive: true, WithMetadata: opts.isMetadata, ShowDir: DirNone})
+
+	targetURL := targetClnt.GetURL().String()
+	targetCh := targetClnt.List(ctx, ListOptions{Recursive: true, WithMetadata: opts.isMetadata, ShowDir: DirNone})
+
+	return difference(sourceURL, sourceCh, targetURL, targetCh, opts, false)
+}
+
+func bucketDifference(ctx context.Context, sourceClnt, targetClnt Client, opts mirrorOptions) (diffCh chan diffMessage) {
 	sourceURL := sourceClnt.GetURL().String()
 	sourceCh := make(chan *ClientContent)
 
@@ -215,11 +221,16 @@ func bucketDifference(ctx context.Context, sourceClnt, targetClnt Client) (diffC
 		}
 	}()
 
-	return difference(sourceURL, sourceCh, targetURL, targetCh, false, false)
+	return difference(sourceURL, sourceCh, targetURL, targetCh, opts, false)
 }
 
-func differenceInternal(sourceURL string, srcCh <-chan *ClientContent, targetURL string, tgtCh <-chan *ClientContent,
-	cmpMetadata, returnSimilar bool, diffCh chan<- diffMessage,
+func differenceInternal(sourceURL string,
+	srcCh <-chan *ClientContent,
+	targetURL string,
+	tgtCh <-chan *ClientContent,
+	opts mirrorOptions,
+	returnSimilar bool,
+	diffCh chan<- diffMessage,
 ) *probe.Error {
 	// Pop first entries from the source and targets
 	srcCtnt, srcOk := <-srcCh
@@ -232,8 +243,14 @@ func differenceInternal(sourceURL string, srcCh <-chan *ClientContent, targetURL
 		tgtEOF = !tgtOk
 
 		// No objects from source AND target: Finish
-		if srcEOF && tgtEOF {
-			break
+		if opts.sourceListingOnly {
+			if srcEOF {
+				break
+			}
+		} else {
+			if srcEOF && tgtEOF {
+				break
+			}
 		}
 
 		if !srcEOF && srcCtnt.Err != nil {
@@ -332,7 +349,7 @@ func differenceInternal(sourceURL string, srcCh <-chan *ClientContent, targetURL
 					firstContent:  srcCtnt,
 					secondContent: tgtCtnt,
 				}
-			} else if cmpMetadata &&
+			} else if opts.isMetadata &&
 				!metadataEqual(srcCtnt.UserMetadata, tgtCtnt.UserMetadata) &&
 				!metadataEqual(srcCtnt.Metadata, tgtCtnt.Metadata) {
 
@@ -375,13 +392,13 @@ func differenceInternal(sourceURL string, srcCh <-chan *ClientContent, targetURL
 
 // objectDifference function finds the difference between all objects
 // recursively in sorted order from source and target.
-func difference(sourceURL string, sourceCh <-chan *ClientContent, targetURL string, targetCh <-chan *ClientContent, cmpMetadata, returnSimilar bool) (diffCh chan diffMessage) {
+func difference(sourceURL string, sourceCh <-chan *ClientContent, targetURL string, targetCh <-chan *ClientContent, opts mirrorOptions, returnSimilar bool) (diffCh chan diffMessage) {
 	diffCh = make(chan diffMessage, 10000)
 
 	go func() {
 		defer close(diffCh)
 
-		err := differenceInternal(sourceURL, sourceCh, targetURL, targetCh, cmpMetadata, returnSimilar, diffCh)
+		err := differenceInternal(sourceURL, sourceCh, targetURL, targetCh, opts, returnSimilar, diffCh)
 		if err != nil {
 			// handle this specifically for filesystem related errors.
 			switch v := err.ToGoError().(type) {

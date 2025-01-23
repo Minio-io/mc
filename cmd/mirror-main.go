@@ -558,6 +558,13 @@ func (mj *mirrorJob) monitorMirrorStatus(cancel context.CancelFunc) (errDuringMi
 
 	var cancelInProgress bool
 
+	defer func() {
+		// make sure we always cancel the context
+		if !cancelInProgress {
+			cancel()
+		}
+	}()
+
 	for sURLs := range mj.statusCh {
 		if cancelInProgress {
 			// Do not need to print any error after
@@ -1011,6 +1018,13 @@ func runMirror(ctx context.Context, srcURL, dstURL string, cli *cli.Context, enc
 		activeActive:          isWatch,
 	}
 
+	// If we are not using active/active and we are not removing
+	// files from the remote, then we can exit the listing once
+	// local files have been checked for diff.
+	if !mopts.activeActive && !mopts.isRemove {
+		mopts.sourceListingOnly = true
+	}
+
 	// Create a new mirror job and execute it
 	mj := newMirrorJob(srcURL, dstURL, mopts)
 
@@ -1022,7 +1036,7 @@ func runMirror(ctx context.Context, srcURL, dstURL string, cli *cli.Context, enc
 
 	if mirrorSrcBuckets || createDstBuckets {
 		// Synchronize buckets using dirDifference function
-		for d := range bucketDifference(ctx, srcClt, dstClt) {
+		for d := range bucketDifference(ctx, srcClt, dstClt, mj.opts) {
 			if d.Error != nil {
 				if mj.opts.activeActive {
 					errorIf(d.Error, "Failed to start mirroring.. retrying")
