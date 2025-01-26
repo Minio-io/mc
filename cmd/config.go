@@ -304,7 +304,14 @@ func expandAliasFromEnv(envURL string) (*aliasConfigV10, *probe.Error) {
 	if err != nil {
 		return nil, err.Trace(envURL)
 	}
-
+	if globalCredsEnv {
+		if accessKeyVal := os.Getenv(accessKey); accessKeyVal != "" {
+			accessKey = accessKeyVal
+		}
+		if secretKeyVal := os.Getenv(secretKey); secretKeyVal != "" {
+			secretKey = secretKeyVal
+		}
+	}
 	return &aliasConfigV10{
 		URL:          u.String(),
 		API:          "S3v4",

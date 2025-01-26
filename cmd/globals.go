@@ -73,6 +73,7 @@ var (
 	globalDebug        = false               // Debug flag set via command line
 	globalNoColor      = false               // No Color flag set via command line
 	globalInsecure     = false               // Insecure flag set via command line
+	globalCredsEnv     = false               // Get credentials from environment flag set via command line
 	globalResolvers    map[string]netip.Addr // Custom mappings from HOST[:PORT] to IP
 	globalAirgapped    = false               // Airgapped flag set via command line
 	globalSubnetConfig []madmin.SubsysConfig // Subnet config
@@ -124,6 +125,7 @@ func setGlobalsFromContext(ctx *cli.Context) error {
 	insecure := ctx.Bool("insecure") || ctx.GlobalBool("insecure")
 	devMode := ctx.Bool("dev") || ctx.GlobalBool("dev")
 	airgapped := ctx.Bool("airgap") || ctx.GlobalBool("airgap")
+	credsEnv := ctx.Bool("creds-env") || ctx.GlobalBool("creds-env")
 
 	globalQuiet = globalQuiet || quiet
 	globalDebug = globalDebug || debug
@@ -133,6 +135,7 @@ func setGlobalsFromContext(ctx *cli.Context) error {
 	globalInsecure = globalInsecure || insecure
 	GlobalDevMode = GlobalDevMode || devMode
 	globalAirgapped = globalAirgapped || airgapped
+	globalCredsEnv = globalCredsEnv || credsEnv
 
 	// Disable colorified messages if requested.
 	if globalNoColor || globalQuiet {

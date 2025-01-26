@@ -96,6 +96,11 @@ var globalFlags = []cli.Flag{
 		Hidden: true,
 		Value:  10 * time.Minute,
 	},
+	cli.BoolFlag{
+		Name:   "creds-env",
+		Usage:  "enable get credentials from environment",
+		EnvVar: envPrefix + "CREDS_ENV",
+	},
 }
 
 // bundled encryption flags
