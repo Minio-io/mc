@@ -59,6 +59,11 @@ var (
 			Name:  "disable-multipart",
 			Usage: "disable multipart upload feature",
 		},
+		cli.StringFlag{
+			Name:  "tags",
+			Usage: "apply one or more tags to the uploaded objects",
+		},
+		checksumFlag,
 	}
 )
 
@@ -112,23 +117,29 @@ EXAMPLES:
   09. Move a list of objects from local file system to MinIO cloud storage with specified metadata, separated by ";"
       {{.Prompt}} {{.HelpName}} --attr "key1=value1;key2=value2" Music/*.mp4 play/mybucket/
 
-  10. Move a folder recursively from MinIO cloud storage to Amazon S3 cloud storage with Cache-Control and custom metadata, separated by ";".
+  10. Move a list of objects from local file system to MinIO cloud storage and set tags to the uploaded objects
+      {{.Prompt}} {{.HelpName}} --tag "key1=value1" Music/*.mp4 play/mybucket/
+
+  11. Move a folder recursively from MinIO cloud storage to Amazon S3 cloud storage with Cache-Control and custom metadata, separated by ";".
       {{.Prompt}} {{.HelpName}} --attr "Cache-Control=max-age=90000,min-fresh=9000;key1=value1;key2=value2" --recursive play/mybucket/myfolder/ s3/mybucket/
 
-  11. Move a text file to an object storage and assign REDUCED_REDUNDANCY storage-class to the uploaded object.
+  12. Move a text file to an object storage and assign REDUCED_REDUNDANCY storage-class to the uploaded object.
       {{.Prompt}} {{.HelpName}} --storage-class REDUCED_REDUNDANCY myobject.txt play/mybucket
 
-  12. Move a text file to an object storage and preserve the file system attribute as metadata.
+  13. Move a text file to an object storage and preserve the file system attribute as metadata.
       {{.Prompt}} {{.HelpName}} -a myobject.txt play/mybucket
 
-  13. Move a text file to an object storage and disable multipart upload feature.
+  14. Move a text file to an object storage and disable multipart upload feature.
       {{.Prompt}} {{.HelpName}} --disable-multipart myobject.txt play/mybucket
 
-  14. Move a folder using client provided encryption keys from Amazon S3 to MinIO cloud storage.
+  15. Move a folder using client provided encryption keys from Amazon S3 to MinIO cloud storage.
       {{.Prompt}} {{.HelpName}} --r --enc-c "s3/documents/=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MBB" --enc-c "myminio/documents/=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDA" s3/documents/ myminio/documents/
 
-  15. Move a folder using specific server managed encryption keys from Amazon S3 to MinIO cloud storage.
+  16. Move a folder using specific server managed encryption keys from Amazon S3 to MinIO cloud storage.
       {{.Prompt}} {{.HelpName}} --r --enc-s3 "s3/documents" --enc-s3 "myminio/documents" s3/documents/ myminio/documents/
+
+  17. Add SHA256 checksum to move a text file to MinIO cloud storage.
+      {{.Prompt}} {{.HelpName}} --checksum SHA256 myobject.txt play/mybucket
 `,
 }
 
