@@ -41,8 +41,12 @@ var logsShowFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "type, t",
-		Usage: "list error logs by type. Valid options are '[minio, application, all]'",
+		Usage: "list logs by type. Valid options are '[minio, application, all]'",
 		Value: "all",
+	},
+	cli.StringSliceFlag{
+		Name:  "level",
+		Usage: "list logs filter by log levels. Valid options are '[INFO, EVENT, ERROR, WARNING, FATAL, ALL]'",
 	},
 }
 
@@ -66,7 +70,9 @@ EXAMPLES:
      {{.Prompt}} {{.HelpName}} myminio
   2. Show last 5 log entries for node 'node1' for a MinIO server with alias 'myminio'
      {{.Prompt}} {{.HelpName}} --last 5 myminio node1
-  3. Show application errors in logs for a MinIO server with alias 'myminio'
+  3. Show error logs for a MinIO server with alias 'myminio'
+     {{.Prompt}} {{.HelpName}} --level ERROR myminio
+  4. Show application logs for a MinIO server with alias 'myminio'
      {{.Prompt}} {{.HelpName}} --type application myminio
 `,
 }
@@ -75,6 +81,18 @@ func checkLogsShowSyntax(ctx *cli.Context) {
 	if len(ctx.Args()) == 0 || len(ctx.Args()) > 3 {
 		showCommandHelpAndExit(ctx, 1) // last argument is exit code
 	}
+}
+
+func filterLogLevel(logLevels []string, level string) bool {
+	if len(logLevels) <= 0 {
+		return true
+	}
+	for _, logLevel := range logLevels {
+		if "ALL" == strings.ToUpper(logLevel) || level == strings.ToUpper(logLevel) {
+			return true
+		}
+	}
+	return false
 }
 
 // Extend madmin.LogInfo to add String() and JSON() methods
@@ -142,22 +160,25 @@ func (l logMessage) String() string {
 	if l.UserAgent != "" {
 		fmt.Fprintf(b, "\n%s UserAgent: %s", hostStr, l.UserAgent)
 	}
-	if l.Trace != nil {
-		if l.Trace.Message != "" {
-			fmt.Fprintf(b, "\n%s Error: %s", hostStr, console.Colorize("LogMessage", l.Trace.Message))
-		}
-		if l.Trace.Variables != nil {
-			for key, value := range l.Trace.Variables {
-				if value != "" {
-					fmt.Fprintf(b, "\n%s %s=%s", hostStr, key, value)
-				}
+	if l.Trace == nil {
+		fmt.Fprintf(b, "\n%s %s: %s", hostStr, l.Level, console.Colorize("LogMessage", l.Message))
+		logMsg := strings.TrimPrefix(b.String(), "\n")
+		return fmt.Sprintf("%s\n", logMsg)
+	}
+	if l.Trace.Message != "" {
+		fmt.Fprintf(b, "\n%s %s: %s", hostStr, l.Level, console.Colorize("LogMessage", l.Trace.Message))
+	}
+	if l.Trace.Variables != nil {
+		for key, value := range l.Trace.Variables {
+			if value != "" {
+				fmt.Fprintf(b, "\n%s %s=%s", hostStr, key, value)
 			}
 		}
-		if l.Trace.Source != nil {
-			traceLength := len(l.Trace.Source)
-			for i, element := range l.Trace.Source {
-				fmt.Fprintf(b, "\n%s %8v: %s", hostStr, traceLength-i, element)
-			}
+	}
+	if l.Trace.Source != nil {
+		traceLength := len(l.Trace.Source)
+		for i, element := range l.Trace.Source {
+			fmt.Fprintf(b, "\n%s %8v: %s", hostStr, traceLength-i, element)
 		}
 	}
 	logMsg := strings.TrimPrefix(b.String(), "\n")
@@ -189,6 +210,13 @@ func mainAdminLogs(ctx *cli.Context) error {
 	if logType != "minio" && logType != "application" && logType != "all" {
 		fatalIf(errInvalidArgument().Trace(ctx.Args()...), "Invalid value for --type flag. Valid options are [minio, application, all]")
 	}
+	logLevels := ctx.StringSlice("level")
+	for _, logLevel := range logLevels {
+		logLevel := strings.ToUpper(logLevel)
+		if logLevel != "INFO" && logLevel != "EVENT" && logLevel != "ERROR" && logLevel != "WARNING" && logLevel != "FATAL" && logLevel != "ALL" {
+			fatalIf(errInvalidArgument().Trace(ctx.Args()...), "Invalid value for --level flag. Valid options are [INFO, EVENT, ERROR, WARNING, FATAL, ALL]")
+		}
+	}
 	// Create a new MinIO Admin Client
 	client, err := newAdminClient(aliasedURL)
 	if err != nil {
@@ -204,6 +232,9 @@ func mainAdminLogs(ctx *cli.Context) error {
 	for logInfo := range logCh {
 		if logInfo.Err != nil {
 			fatalIf(probe.NewError(logInfo.Err), "Unable to listen to console logs")
+		}
+		if !filterLogLevel(logLevels, logInfo.Level) {
+			continue
 		}
 		// drop nodeName from output if specified as cli arg
 		if node != "" {
